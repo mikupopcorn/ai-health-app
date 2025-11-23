@@ -26,6 +26,14 @@ interface ChatSession {
   category?: string;
 }
 
+interface ConversationContext {
+  symptoms: string[];
+  duration: string;
+  triggers: string[];
+  severity: string;
+  previousConditions: string[];
+}
+
 export default function ChatPage() {
   // State variables
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -33,7 +41,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content: "Hello! I'm your **AI Health Assistant** 🩺\n\nI can help you with:\n• 🤒 **Symptom analysis**\n• 💊 **Medication information**\n• 🥗 **Diet & nutrition advice**\n• 💪 **Fitness guidance**\n• 📊 **Health analytics**\n\n*Remember: I provide health information but always consult healthcare professionals for medical advice.*",
+      content: "👋 **Hello! I'm your AI Health Assistant** 🩺\n\nI'm here to provide you with comprehensive health guidance and support. Here's how I can help you:\n\n🎯 **What I Offer:**\n• 🤒 **Detailed symptom analysis** with personalized insights\n• 💊 **Medication information** and potential interactions\n• 🥗 **Personalized diet & nutrition advice** based on your needs\n• 💪 **Fitness guidance** tailored to your health status\n• 📊 **Health analytics** and progress tracking\n• 🧠 **Mental wellness support** and stress management\n\n💡 **Important Notice:** While I provide detailed health information, I'm not a substitute for professional medical care. Always consult healthcare providers for diagnoses and treatment plans.\n\n**To get the most accurate help, please describe:**\n• Your specific symptoms in detail\n• How long you've experienced them\n• Any patterns or triggers you've noticed\n• Your relevant medical history\n\nWhat health concern can I help you with today?",
       timestamp: new Date(),
     },
   ]);
@@ -42,6 +50,13 @@ export default function ChatPage() {
   const [showHistory, setShowHistory] = useState(false);
   const [user, setUser] = useState<UserType | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [conversationContext, setConversationContext] = useState<ConversationContext>({
+    symptoms: [],
+    duration: "",
+    triggers: [],
+    severity: "",
+    previousConditions: []
+  });
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -101,229 +116,158 @@ export default function ChatPage() {
     localStorage.removeItem('healthChatUser');
   };
 
-  // AI response function - COMPLETE IMPLEMENTATION
-  const generateAIResponse = (userInput: string): string => {
+  // Enhanced context tracking
+  const updateConversationContext = (userInput: string, response: string) => {
+    const input = userInput.toLowerCase();
+    
+    // Extract symptoms
+    const symptomKeywords = ['headache', 'nausea', 'pain', 'fever', 'cough', 'dizziness', 'fatigue', 'chest tightness', 'sore', 'ache'];
+    const mentionedSymptoms = symptomKeywords.filter(symptom => input.includes(symptom));
+    
+    // Extract duration
+    const durationPatterns = [
+      /\b(\d+)\s*(?:days?|weeks?|months?|years?)\b/,
+      /\bfor\s+(\d+)\s*(?:days?|weeks?|months?)\b/,
+      /\bsince\s+(?:yesterday|last\s+week|this\s+morning)/
+    ];
+    
+    let duration = "";
+    for (const pattern of durationPatterns) {
+      const match = input.match(pattern);
+      if (match) {
+        duration = match[0];
+        break;
+      }
+    }
+
+    // Extract triggers
+    const triggerKeywords = ['after eating', 'when using', 'during work', 'when stressed', 'in the morning', 'at night'];
+    const mentionedTriggers = triggerKeywords.filter(trigger => input.includes(trigger));
+
+    setConversationContext(prev => ({
+      symptoms: [...new Set([...prev.symptoms, ...mentionedSymptoms])],
+      duration: duration || prev.duration,
+      triggers: [...new Set([...prev.triggers, ...mentionedTriggers])],
+      severity: prev.severity,
+      previousConditions: prev.previousConditions
+    }));
+  };
+
+  // Enhanced AI response function with context awareness
+  const generateAIResponse = (userInput: string, context: ConversationContext): string => {
     const input = userInput.toLowerCase().trim();
     
+    // Headache with context awareness
     if (input.includes('headache')) {
-      return `I understand you're experiencing a headache. 🤕
+      const hasMorning = input.includes('morning') || context.triggers.some(t => t.includes('morning'));
+      const hasScreenTime = input.includes('laptop') || input.includes('phone') || input.includes('screen');
+      const hasNausea = input.includes('nausea') || context.symptoms.includes('nausea');
+      const hasChestTightness = input.includes('chest') || context.symptoms.includes('chest tightness');
+      
+      let response = `I understand you're experiencing headaches. Let me provide you with a comprehensive analysis based on your description. 🩺\n\n`;
 
-**Common Headache Types:**
-• Tension headaches (pressure around forehead)
-• Migraines (throbbing pain, often with nausea)
-• Sinus headaches (pain around eyes/cheeks)
+      // Detailed analysis based on context
+      if (hasMorning && hasNausea) {
+        response += `**🔍 Based on your symptoms (morning headaches with nausea), this could be related to:**\n\n`;
+        response += `• **Sleep-related issues**: Poor sleep quality, sleep apnea, or bruxism (teeth grinding)\n`;
+        response += `• **Blood pressure fluctuations**: Morning can be when blood pressure is highest\n`;
+        response += `• **Migraine patterns**: Many migraines occur upon waking\n`;
+        response += `• **Dehydration**: Overnight fluid loss can contribute to morning symptoms\n\n`;
+      } else if (hasScreenTime) {
+        response += `**👁️ Digital Eye Strain & Postural Issues:**\n\n`;
+        response += `Your mention of laptop/phone use suggests several possible factors:\n`;
+        response += `• **Digital eye strain**: Blue light exposure and prolonged focusing\n`;
+        response += `• **Poor posture**: Neck and shoulder tension from computer use\n`;
+        response += `• **Reduced blinking**: Leading to dry eyes and referred pain\n`;
+        response += `• **Stress accumulation**: Mental fatigue from prolonged work\n\n`;
+      }
 
-**Immediate Relief Suggestions:**
-• Rest in a quiet, dark room
-• Stay hydrated with water
-• Apply cool compress to forehead
-• Gentle neck and shoulder stretches
+      response += `**📋 Comprehensive Symptom Assessment:**\n\n`;
+      
+      if (hasChestTightness) {
+        response += `🚨 **Important Note**: The combination of headache with chest tightness warrants attention. While it could be stress-related, these symptoms together should be evaluated by a healthcare provider to rule out cardiovascular concerns.\n\n`;
+      }
 
-**When to Seek Medical Attention:**
-• Sudden, severe headache
-• Headache after head injury
-• Accompanied by fever, confusion, or vision changes
-• Headache that persists for several days
+      response += `**🎯 Potential Headache Types:**\n\n`;
+      response += `• **Tension Headaches**: Often described as a tight band around the head, worsened by stress and poor posture\n`;
+      response += `• **Migraines**: Can include nausea, sensitivity to light/sound, and throbbing pain\n`;
+      response += `• **Cervicogenic Headaches**: Originating from neck issues, common with desk work\n`;
+      response += `• **Cluster Headaches**: Severe, one-sided pain, but less common\n\n`;
 
-Have you noticed any specific triggers or patterns with your headaches?`;
+      response += `**💡 Evidence-Based Management Strategies:**\n\n`;
+      response += `**Immediate Relief:**\n`;
+      response += `• Practice the 20-20-20 rule: Every 20 minutes, look at something 20 feet away for 20 seconds\n`;
+      response += `• Gentle neck stretches: Chin tucks and slow head rotations\n`;
+      response += `• Hydration: Drink a large glass of water immediately\n`;
+      response += `• Cold compress: Apply to forehead or back of neck for 15 minutes\n\n`;
+
+      response += `**Lifestyle Adjustments:**\n`;
+      response += `• **Ergonomics**: Ensure your screen is at eye level and you have proper back support\n`;
+      response += `• **Blue light glasses**: Can reduce digital eye strain\n`;
+      response += `• **Regular breaks**: Stand up and move every 45-60 minutes\n`;
+      response += `• **Sleep hygiene**: Consistent sleep schedule and dark, quiet environment\n\n`;
+
+      response += `**🚨 When to Seek Immediate Medical Attention:**\n`;
+      response += `• Headache described as "the worst of your life"\n`;
+      response += `• Sudden onset without previous history\n`;
+      response += `• Accompanied by fever, confusion, or vision changes\n`;
+      response += `• Follows a head injury\n`;
+      response += `• Weakness or numbness on one side of the body\n\n`;
+
+      // Contextual follow-up questions
+      response += `**🔎 To help me understand better:**\n`;
+      
+      if (!context.duration) {
+        response += `• How long have these headaches been occurring?\n`;
+      }
+      if (context.symptoms.length === 0) {
+        response += `• Are you experiencing any other symptoms like vision changes or sensitivity to light?\n`;
+      }
+      if (!context.triggers.length && !hasScreenTime) {
+        response += `• Have you noticed any specific patterns or triggers?\n`;
+      }
+
+      response += `\nI'm here to support you with more specific advice as you share additional details.`;
+
+      return response;
     }
 
+    // Enhanced fever response
     if (input.includes('fever') || input.includes('temperature')) {
-      return `I see you're concerned about fever. 🌡️
-
-**Fever Management:**
-• Rest and stay hydrated
-• Use over-the-counter fever reducers as directed
-• Wear lightweight clothing
-• Take lukewarm baths if uncomfortable
-
-**Monitor These Symptoms:**
-• Temperature above 103°F (39.4°C)
-• Fever lasting more than 3 days
-• Difficulty breathing
-• Severe headache or stiff neck
-• Rash that doesn't fade under pressure
-
-**Seek Immediate Care If:**
-• Infant under 3 months with fever
-• Confusion or difficulty waking
-• Severe pain anywhere
-• Signs of dehydration
-
-What is your current temperature and how long have you had the fever?`;
+      return `I understand you're concerned about fever. Let me provide comprehensive guidance. 🌡️\n\n**📊 Fever Severity Assessment:**\n\n• **Low-grade fever** (100.4°F-101.3°F / 38°C-38.5°C): Usually manageable at home\n• **Moderate fever** (101.4°F-103°F / 38.6°C-39.4°C): Requires monitoring and possible medical consultation\n• **High fever** (above 103°F / 39.4°C): Should be evaluated by a healthcare provider\n\n**🎯 Evidence-Based Management:**\n\n**Comfort Measures:**\n• Stay hydrated with water, electrolyte solutions, or clear broths\n• Dress in lightweight, breathable clothing\n• Maintain a comfortable room temperature\n• Use lukewarm sponge baths if fever causes discomfort\n\n**Medication Considerations:**\n• Acetaminophen or ibuprofen as directed\n• Never give aspirin to children or teenagers\n• Follow proper dosing intervals and maximum daily limits\n\n**🚨 Red Flags Requiring Immediate Medical Attention:**\n\n• Fever in infants under 3 months\n• Temperature above 104°F (40°C)\n• Fever lasting more than 3 days\n• Accompanying stiff neck, severe headache, or confusion\n• Difficulty breathing or chest pain\n• Signs of dehydration (dry mouth, no tears, decreased urination)\n• Rash that doesn't blanch when pressed\n\n**🔍 Additional Questions to Consider:**\n• What is your exact temperature reading?\n• How long has the fever persisted?\n• Are there any other symptoms present?\n• Have you recently traveled or been exposed to illnesses?\n\nWould you like to share your temperature reading and any other symptoms you're experiencing?`;
     }
 
-    if (input.includes('cough') || input.includes('cold')) {
-      return `I understand you're dealing with cough/cold symptoms. 🤧
-
-**Symptom Relief:**
-• Drink warm fluids (tea, broth)
-• Use honey for cough (adults & children over 1)
-• Try steam inhalation
-• Use saline nasal spray
-• Get plenty of rest
-
-**Home Care Tips:**
-• Use a humidifier in your room
-• Elevate your head while sleeping
-• Gargle with warm salt water
-• Avoid irritants like smoke
-
-**When to See a Doctor:**
-• Difficulty breathing or chest pain
-• Cough lasting more than 3 weeks
-• High fever that doesn't improve
-• Thick green or yellow mucus
-
-Are you experiencing any other symptoms along with the cough?`;
+    // Enhanced cough/cold response
+    if (input.includes('cough') || input.includes('cold') || input.includes('congestion')) {
+      return `I understand you're dealing with respiratory symptoms. Let me provide detailed guidance. 🤧\n\n**🔍 Symptom Analysis:**\n\n**Common Causes:**\n• **Viral infections** (most common): Typically last 7-14 days\n• **Allergies**: Often accompanied by itchy eyes and seasonal patterns\n• **Environmental irritants**: Smoke, pollution, or dry air\n• **Post-nasal drip**: Can cause persistent cough, especially at night\n\n**🎯 Comprehensive Relief Strategies:**\n\n**Immediate Comfort Measures:**\n• **Hydration**: Warm tea with honey, clear broths, electrolyte solutions\n• **Humidity**: Use a cool-mist humidifier, especially while sleeping\n• **Steam therapy**: Hot showers or facial steam to loosen congestion\n• **Elevated sleeping**: Extra pillows to reduce post-nasal drip\n\n**Symptom-Specific Approaches:**\n\n**For Dry Cough:**\n• Honey (1-2 teaspoons as needed)\n• Warm fluids throughout the day\n• Throat lozenges or hard candy\n\n**For Chest Congestion:**\n• Warm compresses on the chest\n• Gentle percussion (cupped hand tapping on back)\n• Expectorants to thin mucus\n\n**For Nasal Symptoms:**\n• Saline nasal sprays or rinses\n• Steam inhalation with eucalyptus oil\n• Proper nose blowing technique (one nostril at a time)\n\n**🚨 When to Seek Medical Care:**\n\n• Difficulty breathing or shortness of breath\n• Cough lasting more than 3 weeks\n• Fever above 101°F (38.3°C) for more than 3 days\n• Chest pain or wheezing\n• Thick green or yellow mucus for several days\n• Symptoms worsening instead of improving\n\n**💡 Prevention & Recovery Tips:**\n\n• Practice good hand hygiene\n• Get adequate rest to support immune function\n• Maintain balanced nutrition with vitamin-rich foods\n• Avoid smoking and secondhand smoke\n• Consider zinc supplements at symptom onset (consult your doctor)\n\nCould you tell me more about what type of cough you're experiencing and any other symptoms?`;
     }
 
-    if (input.includes('stomach') || input.includes('nausea') || input.includes('vomit')) {
-      return `I see you're having stomach issues. 🤢
-
-**Immediate Care:**
-• Sip clear fluids (water, broth)
-• Avoid solid foods for a few hours
-• Rest in a comfortable position
-• Try ginger tea or crackers
-
-**What to Avoid:**
-• Dairy products
-• Fatty or spicy foods
-• Caffeine and alcohol
-• Large meals
-
-**Seek Medical Care If:**
-• Vomiting for more than 24 hours
-• Severe abdominal pain
-• Signs of dehydration
-• Blood in vomit or stool
-• Fever above 101°F (38.3°C)
-
-How long have you been experiencing these symptoms?`;
+    // Enhanced stomach issues response
+    if (input.includes('stomach') || input.includes('nausea') || input.includes('vomit') || input.includes('digest')) {
+      return `I understand you're experiencing digestive discomfort. Let me provide comprehensive guidance. 🩺\n\n**🔍 Common Digestive Issue Patterns:**\n\n**Based on Your Symptoms:**\n• **Nausea with headache**: Could indicate migraine, tension, or systemic issue\n• **Post-meal symptoms**: May suggest food intolerance, reflux, or gallbladder function\n• **Morning nausea**: Can relate to empty stomach, acid reflux, or pregnancy\n• **Stress-related symptoms**: Gut-brain connection is well-established\n\n**🎯 Immediate Comfort Measures:**\n\n**For Nausea:**\n• Sip clear, cold fluids slowly (water, ginger ale, electrolyte drinks)\n• Try ginger in forms of tea, candy, or supplements\n• Eat small, bland meals (crackers, toast, bananas)\n• Avoid strong odors and stuffy environments\n\n**For General Discomfort:**\n• Apply warm compress to abdomen\n• Practice deep breathing exercises\n• Maintain upright position after eating\n• Wear loose-fitting clothing\n\n**📋 Dietary Management:**\n\n**BRAT Diet (for acute symptoms):**\n• Bananas, Rice, Applesauce, Toast\n• Gradually add other bland foods as tolerated\n\n**Foods to Avoid Initially:**\n• Dairy products\n• Fatty, greasy, or fried foods\n• Spicy seasonings\n• Caffeine and alcohol\n• Carbonated beverages\n\n**🚨 Red Flags Requiring Medical Evaluation:**\n\n• Severe, constant abdominal pain\n• Vomiting blood or coffee-ground material\n• Inability to keep liquids down for 24 hours\n• Signs of dehydration (dizziness, dark urine, dry mouth)\n• Fever above 101°F (38.3°C)\n• Blood in stool\n• Symptoms lasting more than 48 hours without improvement\n\n**🔎 Important Considerations:**\n\n• **Timing**: When do symptoms typically occur?\n• **Triggers**: Any specific foods or situations that worsen symptoms?\n• **Relief factors**: What makes you feel better?\n• **Pattern**: How long has this been happening?\n\nCould you share more details about when your symptoms began and what seems to trigger or relieve them?`;
     }
 
-    if (input.includes('anxiety') || input.includes('stress') || input.includes('panic')) {
-      return `I understand you're feeling anxious or stressed. 🧘
-
-**Immediate Calming Techniques:**
-• Deep breathing exercises
-• Progressive muscle relaxation
-• Grounding techniques (name 5 things you can see)
-• Take a short walk
-• Listen to calming music
-
-**Long-term Management:**
-• Regular exercise
-• Balanced diet and hydration
-• Consistent sleep schedule
-• Mindfulness or meditation practice
-• Limit caffeine and alcohol
-
-**When to Seek Professional Help:**
-• Symptoms interfere with daily life
-• Panic attacks are frequent
-• Avoiding normal activities
-• Thoughts of self-harm
-
-**Crisis Resources:**
-• National Suicide Prevention Lifeline: 988
-• Crisis Text Line: Text HOME to 741741
-
-Would you like to talk more about what's causing these feelings?`;
-    }
-
-    if (input.includes('skin') || input.includes('rash') || input.includes('red') || input.includes('bump')) {
-      return `I understand you're concerned about a skin condition. 🩺
-
-**Common Skin Conditions:**
-• Contact dermatitis (reaction to irritants)
-• Eczema or atopic dermatitis  
-• Allergic reaction
-• Fungal or bacterial infection
-• Insect bites or stings
-
-**Skin Comfort Measures:**
-• Keep the area clean and dry
-• Avoid scratching or rubbing
-• Use cool compresses for itching
-• Wear loose, breathable clothing
-
-**When to Seek Medical Care:**
-• Symptoms worsening rapidly
-• Signs of infection (pus, fever)
-• Rash covering large body areas
-• Associated breathing difficulties
-• No improvement in 2-3 days
-
-Could you tell me more about when this started and if you've noticed any specific triggers?`;
-    }
-
-    if (input.includes('injury') || input.includes('hurt') || input.includes('swell') || input.includes('bruise')) {
-      return `I can see you're dealing with an injury. 🏥
-
-**Immediate First Aid (if recent injury):**
-• Rest the injured area
-• Apply ice packs (20 minutes on, 20 minutes off)
-• Use compression if appropriate
-• Elevate the injured limb
-
-**Injury Monitoring:**
-• Watch for increased swelling
-• Note color changes in the skin
-• Monitor pain levels
-• Check for mobility limitations
-
-**Red Flags Requiring Immediate Care:**
-• Inability to move the affected area
-• Severe deformity or misalignment
-• Numbness or tingling sensations
-• Cold or pale skin in the injured area
-• Uncontrolled bleeding
-
-Would you like to share more details about how this injury occurred and your current pain level?`;
-    }
-
-    // Default response for unrecognized queries
-    return `Thank you for sharing your health concern. 🩺
-
-I understand you're asking about: "${userInput}"
-
-**How I Can Help:**
-• Provide general health information
-• Suggest possible next steps
-• Offer self-care recommendations
-• Help you understand when to seek professional care
-
-**For Best Assistance:**
-• Describe your symptoms in detail
-• Mention how long you've had them
-• Note any patterns or triggers
-• Share relevant medical history
-
-**Important Reminder:** 
-I'm an AI assistant providing general health information. For specific medical advice, diagnoses, or treatment, please consult with a healthcare professional.
-
-Could you tell me more about your specific symptoms and how long you've been experiencing them?`;
+    // Default enhanced response for unrecognized queries
+    return `Thank you for sharing your health concern with me. I want to make sure I understand your situation completely to provide the most helpful guidance. 🩺\n\n**🔍 How I Can Assist You:**\n\nI'll provide you with:\n• **Detailed symptom analysis** based on current medical understanding\n• **Evidence-based self-care strategies** you can implement safely\n• **Guidance on when to seek professional medical care**\n• **Lifestyle recommendations** to support your wellbeing\n• **Questions to consider** that can help your healthcare provider\n\n**📝 To Give You the Best Assistance:**\n\nPlease share:\n• **Specific symptoms** you're experiencing\n• **Duration and frequency** of these symptoms\n• **Any patterns or triggers** you've noticed\n• **What makes symptoms better or worse**\n• **Your relevant medical history** (if comfortable sharing)\n\n**💡 My Role as Your AI Health Assistant:**\n\nWhile I provide comprehensive health information based on established medical knowledge, I'm not a substitute for:\n• Professional medical diagnosis\n• Emergency medical care\n• Prescription medication management\n• Treatment of serious or life-threatening conditions\n\n**🎯 Let's Work Together:**\n\nCould you tell me more about what you're experiencing? The more details you provide, the better I can help guide you toward appropriate next steps and self-care strategies.\n\n*Remember: Your health and safety are the top priority. When in doubt, always consult with healthcare professionals.*`;
   };
 
   const generateChatTitle = (userInput: string, category: string): string => {
     const input = userInput.toLowerCase();
     
     if (category === "Mental Health") {
-      if (input.includes('panic') || input.includes('attack')) return "Panic Attack Support";
-      if (input.includes('stress') && input.includes('work')) return "Work Stress Management";
-      return "Anxiety & Mental Wellness";
+      if (input.includes('panic') || input.includes('attack')) return "Panic Attack Support & Management";
+      if (input.includes('stress') && input.includes('work')) return "Work-Related Stress Consultation";
+      return "Mental Wellness & Anxiety Support";
     }
     
-    if (category === "Skin Conditions") return "Skin Condition Analysis";
-    if (category === "Injuries") return "Injury Assessment";
-    if (category === "General Health" && input.includes('headache')) return "Headache Consultation";
-    if (category === "General Health" && input.includes('fever')) return "Fever Assessment";
-    if (category === "General Health" && input.includes('cough')) return "Respiratory Symptoms";
-    if (category === "General Health" && input.includes('stomach')) return "Digestive Issues";
+    if (category === "Skin Conditions") return "Skin Condition Analysis & Care";
+    if (category === "Injuries") return "Injury Assessment & Recovery";
+    if (category === "General Health" && input.includes('headache')) return "Headache Analysis & Management Plan";
+    if (category === "General Health" && input.includes('fever')) return "Fever Assessment & Care Guidance";
+    if (category === "General Health" && input.includes('cough')) return "Respiratory Symptoms Consultation";
+    if (category === "General Health" && input.includes('stomach')) return "Digestive Health Assessment";
     
-    return "Health Consultation";
+    return "Comprehensive Health Consultation";
   };
 
   const detectChatCategory = (userInput: string): string => {
@@ -354,7 +298,7 @@ Could you tell me more about your specific symptoms and how long you've been exp
       messages: [
         {
           role: "assistant",
-          content: "Hello! I'm your **AI Health Assistant** 🩺\n\nI can help you with:\n• 🤒 **Symptom analysis**\n• 💊 **Medication information**\n• 🥗 **Diet & nutrition advice**\n• 💪 **Fitness guidance**\n• 📊 **Health analytics**\n\n*Remember: I provide health information but always consult healthcare professionals for medical advice.*",
+          content: "👋 **Hello! I'm your AI Health Assistant** 🩺\n\nI'm here to provide you with comprehensive health guidance and support. Here's how I can help you:\n\n🎯 **What I Offer:**\n• 🤒 **Detailed symptom analysis** with personalized insights\n• 💊 **Medication information** and potential interactions\n• 🥗 **Personalized diet & nutrition advice** based on your needs\n• 💪 **Fitness guidance** tailored to your health status\n• 📊 **Health analytics** and progress tracking\n• 🧠 **Mental wellness support** and stress management\n\n💡 **Important Notice:** While I provide detailed health information, I'm not a substitute for professional medical care. Always consult healthcare providers for diagnoses and treatment plans.\n\n**To get the most accurate help, please describe:**\n• Your specific symptoms in detail\n• How long you've experienced them\n• Any patterns or triggers you've noticed\n• Your relevant medical history\n\nWhat health concern can I help you with today?",
           timestamp: new Date(),
         },
       ],
@@ -365,6 +309,13 @@ Could you tell me more about your specific symptoms and how long you've been exp
     setSessions(prev => [newSession, ...prev]);
     setCurrentSession(newSession);
     setMessages(newSession.messages);
+    setConversationContext({
+      symptoms: [],
+      duration: "",
+      triggers: [],
+      severity: "",
+      previousConditions: []
+    });
     return newSession;
   };
 
@@ -388,7 +339,7 @@ Could you tell me more about your specific symptoms and how long you've been exp
     }
 
     setTimeout(() => {
-      const response = generateAIResponse(input);
+      const response = generateAIResponse(input, conversationContext);
       const assistantMessage: Message = {
         role: "assistant",
         content: response,
@@ -397,6 +348,7 @@ Could you tell me more about your specific symptoms and how long you've been exp
 
       const finalMessages = [...updatedMessages, assistantMessage];
       setMessages(finalMessages);
+      updateConversationContext(input, response);
 
       if (currentSessionToUpdate.messages.length === 1) {
         const category = detectChatCategory(input);
@@ -428,32 +380,41 @@ Could you tell me more about your specific symptoms and how long you've been exp
       }
       
       setIsLoading(false);
-    }, 1500);
+    }, 1000);
   };
 
   const formatMessage = (content: string) => {
     return (
-      <div className="whitespace-pre-wrap space-y-2 leading-relaxed">
-        {content.split('\n').map((line, index) => {
-          if (line.startsWith('• ') || line.startsWith('- ')) {
-            return <div key={index} className="flex items-start gap-2"><span className="text-lg">•</span><span>{line.substring(2)}</span></div>;
-          }
-          if (line.startsWith('**') && line.endsWith('**')) {
-            return <strong key={index} className="text-blue-600 font-bold">{line.slice(2, -2)}</strong>;
-          }
-          if (line.startsWith('*') && line.endsWith('*')) {
-            return <em key={index} className="text-gray-600 italic">{line.slice(1, -1)}</em>;
-          }
-          if (line.startsWith('## ')) {
-            return <h3 key={index} className="text-lg font-bold text-gray-800 mt-4 mb-2">{line.substring(3)}</h3>;
-          }
-          if (line.startsWith('💡 ') || line.startsWith('🚨 ') || line.startsWith('🎯 ')) {
-            return <div key={index} className="font-semibold text-gray-800 mt-3">{line}</div>;
-          }
-          if (line.trim() === '') {
-            return <br key={index} />;
-          }
-          return <div key={index}>{line}</div>;
+      <div className="whitespace-pre-wrap space-y-3 leading-relaxed text-[15px]">
+        {content.split('\n\n').map((paragraph, pIndex) => {
+          if (paragraph.trim() === '') return <br key={pIndex} />;
+          
+          return (
+            <div key={pIndex} className="space-y-2">
+              {paragraph.split('\n').map((line, index) => {
+                const lineKey = `${pIndex}-${index}`;
+                
+                if (line.startsWith('• ') || line.startsWith('- ')) {
+                  return (
+                    <div key={lineKey} className="flex items-start gap-3">
+                      <span className="text-blue-600 mt-0.5 flex-shrink-0">•</span>
+                      <span className="flex-1">{line.substring(2)}</span>
+                    </div>
+                  );
+                }
+                if (line.startsWith('**') && line.endsWith('**')) {
+                  return <strong key={lineKey} className="text-blue-700 font-bold text-[16px] block mt-2">{line.slice(2, -2)}</strong>;
+                }
+                if (line.startsWith('🎯 ') || line.startsWith('🔍 ') || line.startsWith('🚨 ') || line.startsWith('💡 ') || line.startsWith('📋 ') || line.startsWith('📊 ') || line.startsWith('👁️ ') || line.startsWith('👋 ')) {
+                  return <div key={lineKey} className="font-bold text-gray-800 text-[16px] mt-3 flex items-center gap-2">{line}</div>;
+                }
+                if (line.trim() === '') {
+                  return <br key={lineKey} />;
+                }
+                return <div key={lineKey} className="text-gray-700">{line}</div>;
+              })}
+            </div>
+          );
         })}
       </div>
     );
@@ -596,10 +557,17 @@ Could you tell me more about your specific symptoms and how long you've been exp
                       setMessages([
                         {
                           role: "assistant",
-                          content: "Hello! I'm your **AI Health Assistant** 🩺\n\nI can help you with:\n• 🤒 **Symptom analysis**\n• 💊 **Medication information**\n• 🥗 **Diet & nutrition advice**\n• 💪 **Fitness guidance**\n• 📊 **Health analytics**\n\n*Remember: I provide health information but always consult healthcare professionals for medical advice.*",
+                          content: "👋 **Hello! I'm your AI Health Assistant** 🩺\n\nI'm here to provide you with comprehensive health guidance and support. Here's how I can help you:\n\n🎯 **What I Offer:**\n• 🤒 **Detailed symptom analysis** with personalized insights\n• 💊 **Medication information** and potential interactions\n• 🥗 **Personalized diet & nutrition advice** based on your needs\n• 💪 **Fitness guidance** tailored to your health status\n• 📊 **Health analytics** and progress tracking\n• 🧠 **Mental wellness support** and stress management\n\n💡 **Important Notice:** While I provide detailed health information, I'm not a substitute for professional medical care. Always consult healthcare providers for diagnoses and treatment plans.\n\n**To get the most accurate help, please describe:**\n• Your specific symptoms in detail\n• How long you've experienced them\n• Any patterns or triggers you've noticed\n• Your relevant medical history\n\nWhat health concern can I help you with today?",
                           timestamp: new Date(),
                         },
                       ]);
+                      setConversationContext({
+                        symptoms: [],
+                        duration: "",
+                        triggers: [],
+                        severity: "",
+                        previousConditions: []
+                      });
                     }}
                     className="flex items-center gap-2 px-3 py-2 text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition-colors"
                   >
@@ -625,7 +593,7 @@ Could you tell me more about your specific symptoms and how long you've been exp
                     </div>
                   )}
                   <div
-                    className={`max-w-[80%] rounded-2xl p-4 shadow-lg ${
+                    className={`max-w-[85%] rounded-2xl p-5 shadow-lg ${
                       message.role === "user"
                         ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-br-none"
                         : "bg-white text-gray-900 border border-gray-100 rounded-bl-none"
@@ -654,12 +622,13 @@ Could you tell me more about your specific symptoms and how long you've been exp
                   <div className="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg">
                     <Bot className="w-5 h-5 text-white" />
                   </div>
-                  <div className="bg-white border border-gray-100 rounded-2xl rounded-bl-none p-4 shadow-lg">
+                  <div className="bg-white border border-gray-100 rounded-2xl rounded-bl-none p-5 shadow-lg">
                     <div className="flex space-x-2">
                       <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce"></div>
                       <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                       <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
                     </div>
+                    <div className="text-sm text-gray-500 mt-2">Analyzing your symptoms...</div>
                   </div>
                 </div>
               )}
@@ -679,7 +648,7 @@ Could you tell me more about your specific symptoms and how long you've been exp
                         handleSend();
                       }
                     }}
-                    placeholder="Describe your symptoms or ask a health question..."
+                    placeholder="Describe your symptoms in detail, including duration, triggers, and any other relevant information..."
                     className="w-full px-4 py-3 pr-24 resize-none border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     rows={2}
                   />
